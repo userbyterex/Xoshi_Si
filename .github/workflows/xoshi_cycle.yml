@@ -2,12 +2,14 @@ name: Xoshi XI Cycle
 
 on:
   workflow_dispatch:
+
   schedule:
     - cron: "7 * * * *"
 
 jobs:
   xoshi:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
 
     steps:
       - name: Checkout
@@ -22,13 +24,21 @@ jobs:
         working-directory: x-agent
         run: npm install
 
-      - name: Install Playwright
+      - name: Install Playwright Chromium
         working-directory: x-agent
         run: npx playwright install --with-deps chromium
 
       - name: TypeScript check
         working-directory: x-agent
         run: npx tsc --noEmit
+
+      - name: Backend health check
+        env:
+          FASTAPI_URL: ${{ secrets.FASTAPI_URL }}
+        run: |
+          echo "Checking Xoshi backend..."
+          curl -fsS "$FASTAPI_URL/health"
+          echo ""
 
       - name: Run Xoshi XI
         working-directory: x-agent
@@ -41,4 +51,11 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GIST_ID: ${{ secrets.GIST_ID }}
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
-        run: npx ts-node run_cycle.ts
+        run: |
+          echo "FASTAPI_URL: ${FASTAPI_URL:+SET}"
+          echo "TWITTER_AUTH_TOKEN: ${TWITTER_AUTH_TOKEN:+SET}"
+          echo "TWITTER_CT0: ${TWITTER_CT0:+SET}"
+          echo "GROQ_API_KEY: ${GROQ_API_KEY:+SET}"
+          echo "GEMINI_API_KEY: ${GEMINI_API_KEY:+SET}"
+
+          npx ts-node run_cycle.ts
