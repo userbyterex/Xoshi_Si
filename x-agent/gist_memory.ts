@@ -1,34 +1,54 @@
-import axios from "axios";
+import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const GIST_ID = process.env.GIST_ID || "";
-const GIST_TOKEN = process.env.GIST_TOKEN || "";
-const FILE_NAME = "xoshi_memory.json";
+const MEMORY_FILE = path.join(__dirname, 'xoshi_memory.json');
 
-export async function loadMemory(): Promise<any> {
-  if (!GIST_ID || !GIST_TOKEN) {
-    return { repliedTweets: [], postedTexts: [], engagementLog: [], agents: {}, trends: {} };
-  }
-
-  try {
-    const r = await axios.get(`https://api.github.com/gists/${GIST_ID}`, {
-      headers: { Authorization: `Bearer ${GIST_TOKEN}`, Accept: "application/vnd.github+json" }
-    });
-    const content = r.data?.files?.[FILE_NAME]?.content;
-    return content ? JSON.parse(content) : { repliedTweets: [], postedTexts: [], engagementLog: [], agents: {}, trends: {} };
-  } catch {
-    return { repliedTweets: [], postedTexts: [], engagementLog: [], agents: {}, trends: {} };
-  }
+export interface XoshiMemory {
+  repliedTweets: string[];
+  lastDailyPostTime?: number;
+  postedTexts?: { text: string; time: number }[];
+  engagementLog?: { text: string; likes: number; replies: number; time: number }[];
+  topPatterns?: string[];
 }
 
-export async function saveMemoryRemote(memory: any): Promise<void> {
-  if (!GIST_ID || !GIST_TOKEN) return;
+const DEFAULT_MEMORY: XoshiMemory = { repliedTweets: [] };
+
+export async function loadMemory(): Promise<XoshiMemory> {
+  const gistId = process.env.GIST_ID;
+  const gistToken = process.env.GIST_TOKEN;
+  if (gistId && gistToken) {
+    try {
+      const r = await axios.get(`https://api.github.com/gists/${gistId}`, {
+        headers: { Authorization: `Bearer ${gistToken}`, Accept: 'application/vnd.github+json' },
+        timeout: 8000,
+      });
+      const content = r.data?.files?.['xoshi_memory.json']?.content;
+      if (content) return JSON.parse(content);
+    } catch (e: any) {
+      console.log(`Gist memory load failed: ${e.message}`);
+    }
+  }
   try {
-    await axios.patch(
-      `https://api.github.com/gists/${GIST_ID}`,
-      { files: { [FILE_NAME]: { content: JSON.stringify(memory, null, 2) } } },
-      { headers: { Authorization: `Bearer ${GIST_TOKEN}`, Accept: "application/vnd.github+json" } }
-    );
+    if (fs.existsSync(MEMORY_FILE)) return JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf8'));
+  } catch {}
+  return { ...DEFAULT_MEMORY };
+}
+
+export async function saveMemoryRemote(memory: XoshiMemory): Promise<void> {
+  const content = JSON.stringify(memory, null, 2);
+  try { fs.writeFileSync(MEMORY_FILE, content, 'utf8'); } catch {}
+  const gistId = process.env.GIST_ID;
+  const gistToken = process.env.GIST_TOKEN;
+  if (!gistId || !gistToken) return;
+  try {
+    await axios.patch(`https://api.github.com/gists/${gistId}`, {
+      files: { 'xoshi_memory.json': { content } }
+    }, {
+      headers: { Authorization: `Bearer ${gistToken}`, Accept: 'application/vnd.github+json' },
+      timeout: 8000,
+    });
   } catch (e: any) {
-    console.error("Memory save failed:", e.message);
+    console.log(`Gist memory save failed: ${e.message}`);
   }
 }
