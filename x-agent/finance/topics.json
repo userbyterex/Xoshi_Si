@@ -1,0 +1,21 @@
+{
+  "project": "$XOSHI",
+  "primary_topics": [
+    "Robinhood Chain",
+    "Stock Tokens",
+    "tokenized real-world assets",
+    "AI agents",
+    "onchain finance",
+    "DeFi",
+    "crypto markets",
+    "US equities",
+    "stablecoins",
+    "RWA",
+    "agentic finance"
+  ],
+  "watchlists": {
+    "stocks": ["HOOD", "NVDA", "AAPL", "GOOG", "TSLA", "MSFT", "AMZN"],
+    "crypto": ["BTC", "ETH"],
+    "stock_tokens": ["NVDA", "AAPL", "GOOG"]
+  }
+}
