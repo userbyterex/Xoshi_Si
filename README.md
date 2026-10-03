@@ -1,143 +1,121 @@
-# Xoshi XI — Xuper Intelligence
+# Xoshi XI — Autonomous Finance & AI Agent
 
-Xoshi is an autonomous social-intelligence agent built from the useful Sibili architecture:
-- FastAPI intelligence backend
-- TypeScript + Playwright X agent
-- Qwen-compatible LLM
-- persistent memory via GitHub Gist
-- GitHub Actions scheduled cycles
-- optional Redis
-- optional on-chain context
+Xoshi XI (`@xoshi_Si`) is an autonomous X agent focused on:
 
-## Important security
-Never commit:
-- `.env`
-- X cookies/tokens
-- GitHub PATs
-- browser profiles
-- API keys
+- `$XOSHI`
+- Robinhood Chain
+- Stock Tokens / tokenized equities
+- RWAs and tokenization
+- crypto and DeFi
+- AI agents / agentic finance
+- market structure and public equities
 
-Before using this repository, revoke any credential that was previously exposed in a public repository.
+The project is adapted from the useful Sibili agent architecture while being
+cleaned for a fresh public repository.
+
+## Core behavior
+
+### Direct conversation
+If someone mentions `@xoshi_Si`, Xoshi treats it as a direct conversational
+request and attempts to answer it. Direct mentions have priority over the
+normal radar.
+
+### Language policy
+Xoshi is multilingual and detects the language of the user message.
+
+- English is the primary/default language.
+- If the user writes in Spanish, answer in Spanish.
+- French -> French.
+- German -> German.
+- Portuguese -> Portuguese.
+- Italian -> Italian.
+- Other languages -> answer in that language when confidently detected.
+- Mixed-language messages -> normally answer in the dominant language.
+- If uncertain -> English.
+
+The language choice applies to direct replies and generated posts. Xoshi should
+sound natural rather than translating mechanically.
+
+### Financial safety
+Xoshi is an informational/research agent. It must not fabricate:
+
+- prices
+- volume
+- contracts
+- partnerships
+- listings
+- holdings
+- official affiliations
+- breaking news
+
+Current market data should come from a configured data source, not from the LLM
+memory. Xoshi does not execute trades or place orders.
 
 ## Architecture
 
-X data -> Watch/Radar -> Xoshi Brain -> IGNORE / REPLY / POST
-                         -> Social Graph
-                         -> Memory
-                         -> Self-learning
-
-## Setup
-
-### Backend
-
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8080
+```text
+                         X / Playwright
+                               |
+                    +----------+----------+
+                    |                     |
+             @xoshi_Si mention        Hourly radar
+                    |                     |
+                    +----------+----------+
+                               |
+                         Xoshi Router
+                               |
+                    +----------+----------+
+                    |                     |
+                 Groq                  Gemini
+             conversation /          radar / classify /
+              deep reasoning          fallback
+                    |                     |
+                    +----------+----------+
+                               |
+                        FastAPI Backend
+                               |
+                  Market / News / Onchain data
+                         (optional APIs)
+                               |
+                           Memory
 ```
 
-### Agent
+## Deployment
+
+- **GitHub Actions**: runs the X/Playwright cycle every hour.
+- **Google Cloud Run**: hosts the stateless FastAPI intelligence backend.
+- **Groq + Gemini**: free-tier AI providers, subject to their current quotas.
+- **Gist**: optional lightweight persistent memory.
+- Browser credentials/profiles are never committed to the repository.
+
+## Fresh setup
+
+1. Create a new GitHub repository.
+2. Upload the complete contents of this project.
+3. Create a Google Cloud project and deploy the backend to Cloud Run.
+4. Create Groq and Gemini API keys.
+5. Create a new X account for Xoshi and authenticate it.
+6. Configure GitHub Secrets.
+7. Run the workflow manually.
+8. Test by mentioning `@xoshi_Si`.
+
+See:
+- `CLOUD_RUN_SETUP.md`
+- `X_SETUP.md`
+- `SECRETS.md`
+
+## Local X login
+
+For a local persistent browser profile:
 
 ```bash
 cd x-agent
 npm install
-npx playwright install --with-deps
-npm start
+npx playwright install chromium
+npm run login
 ```
 
-Copy `.env.example` to `.env` and fill secrets locally.
+This opens Chromium. Log into the new X account manually. The profile is stored
+outside Git tracking under `profiles/xoshi-main` and is ignored by `.gitignore`.
 
-## GitHub Actions
-
-Set repository secrets:
-- TWITTER_AUTH_TOKEN
-- TWITTER_CT0
-- QWEN_API_KEY
-- GIST_ID
-- GIST_TOKEN
-- MOLTBOOK_API_KEY (optional)
-- REDIS_URL (optional)
-
-The workflow runs every 15 minutes and performs a bounded intelligence cycle.
-
-## Philosophy
-
-Xoshi should prefer relevance over volume:
-- ignore low-value posts
-- avoid repetitive replies
-- prioritize meaningful conversations
-- learn from engagement
-- never expose secrets
-
-
-## Xoshi XI — Finance / Markets Adaptation
-
-This version keeps the useful Sibili-style agent loop — browser session, mentions,
-proactive radar, backend intelligence, memory and scheduled execution — but adapts
-the editorial domain to $XOSHI and financial/onchain topics.
-
-### Core coverage
-- $XOSHI ecosystem and community
-- Robinhood Chain
-- Stock Tokens
-- tokenized real-world assets (RWAs)
-- crypto markets
-- public equities and market structure
-- AI agents / agentic finance
-- DeFi and onchain data
-- stablecoins and tokenization
-
-### Editorial behavior
-Xoshi should separate:
-1. verified facts,
-2. source-attributed claims,
-3. market observations,
-4. uncertainty.
-
-It should not fabricate prices, contracts, partnerships, listings, ownership,
-or official relationships. Financial content is informational/research-oriented;
-the agent does not execute trades.
-
-### New-account sessions
-Browser profiles remain local/secret and are never committed to GitHub. Each X
-account can have its own Playwright persistent profile.
-
-### Market-data adapters
-`x-agent/finance/market_radar.ts` is intentionally provider-agnostic. Connect a
-licensed/current data provider through environment variables rather than embedding
-API credentials in source code.
-
-
-## Direct mentions — @xoshi_Si
-
-Direct mentions of `@xoshi_Si` have priority over the normal engagement filter.
-When a user explicitly tags or names Xoshi, the agent attempts to answer the
-question through the intelligence backend. If the backend is temporarily
-unavailable, it uses a safe fallback asking what the user wants to know.
-
-This is deliberately different from the proactive radar: **a direct mention is
-a conversational request and should not be silently ignored.**
-
-
-## Dual free AI router
-
-Xoshi uses two providers:
-- **Groq / `openai/gpt-oss-120b`**: direct mentions and higher-value reasoning.
-- **Gemini / `gemini-3.7-flash`**: hourly radar/classification and fallback.
-
-The router automatically falls back to the other provider if one is unavailable.
-No billing key is required for the intended free-tier setup; provider quotas still
-apply.
-
-## Hourly operation
-
-GitHub Actions runs Xoshi once every hour (`:07`). Direct mentions are handled
-during each cycle and have priority. If near-real-time replies are required
-between hourly cycles, use a separate always-on worker/webhook architecture.
-
-
-## Deployment
-
-Render is not used. The FastAPI intelligence backend is packaged for
-**Google Cloud Run**. The X/Playwright agent remains on GitHub Actions and
-runs hourly. See `CLOUD_RUN_SETUP.md`.
+For GitHub Actions, use X session secrets instead of committing a browser profile.

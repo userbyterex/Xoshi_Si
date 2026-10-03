@@ -1,11 +1,10 @@
 {
-  "name": "xoshi-x-agent",
-  "version": "1.0.0",
-  "description": "Xoshi XI autonomous social intelligence agent",
-  "main": "run_cycle.ts",
+  "name": "xoshi-xi-agent",
+  "version": "2.0.0",
+  "private": true,
   "scripts": {
     "start": "ts-node run_cycle.ts",
-    "dev": "ts-node-dev --respawn --transpile-only run_cycle.ts",
+    "login": "ts-node scripts/login.ts",
     "build": "tsc --noEmit"
   },
   "dependencies": {
@@ -14,9 +13,8 @@
     "playwright": "^1.58.2"
   },
   "devDependencies": {
-    "@types/node": "^20.12.7",
+    "@types/node": "^20.12.12",
     "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
   }
 }

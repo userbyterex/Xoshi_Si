@@ -1,274 +1,202 @@
-import { chromium, Page, BrowserContext } from "playwright";
+import "dotenv/config";
 import axios from "axios";
-import * as dotenv from "dotenv";
-import { loadMemory, saveMemoryRemote } from "./gist_memory";
+import { chromium, BrowserContext, Page } from "playwright";
+import fs from "fs";
+import path from "path";
 
-dotenv.config();
+const FASTAPI_URL = process.env.FASTAPI_URL!;
+const HANDLE = (process.env.XOSHI_HANDLE || "xoshi_Si").replace(/^@/, "");
+const PROFILE = path.resolve(process.env.XOSHI_PROFILE_DIR || "./profiles/xoshi-main");
+const AUTH = process.env.TWITTER_AUTH_TOKEN;
+const CT0 = process.env.TWITTER_CT0;
 
-const FASTAPI_URL = process.env.FASTAPI_URL || "http://127.0.0.1:8080";
-const HANDLE = (process.env.XOSHI_HANDLE || "xoshi").toLowerCase();
-const EXCLUDE = HANDLE.replace("@", "");
+type Memory = {
+  repliedTweets: string[];
+  lastDailyPost?: string;
+  lastRun?: string;
+};
 
-const SEARCH_QUERIES = [
-  '("AI agents" OR "AI agent" OR agentic) -filter:replies -filter:links',
-  '("onchain" OR "on-chain" OR DeFi OR RWA) -filter:replies -filter:links',
-  '("stablecoin" OR "tokenized" OR "autonomous finance") -filter:replies -filter:links',
-  '("Bitcoin" OR "Ethereum" OR crypto) ("agent" OR "AI") -filter:replies',
-];
+const DEFAULT_MEMORY: Memory = { repliedTweets: [] };
 
-const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
-
-async function wakeBackend() {
-  for (let i = 0; i < 5; i++) {
-    try {
-      const r = await axios.get(`${FASTAPI_URL}/health`, { timeout: 10000 });
-      if (r.status === 200) return true;
-    } catch {}
-    await delay(3000);
-  }
-  return false;
-}
-
-async function createContext(): Promise<BrowserContext> {
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125 Safari/537.36",
-    viewport: { width: 1280, height: 800 },
-  });
-
-  const auth = process.env.TWITTER_AUTH_TOKEN;
-  const ct0 = process.env.TWITTER_CT0;
-
-  if (auth && ct0) {
-    await context.addCookies([
-      { name: "auth_token", value: auth, domain: ".x.com", path: "/", secure: true, httpOnly: true },
-      { name: "ct0", value: ct0, domain: ".x.com", path: "/", secure: true, httpOnly: false },
-    ]);
-  }
-  return context;
-}
-
-async function loggedIn(page: Page) {
+async function loadMemory(): Promise<Memory> {
+  if (!process.env.GIST_ID || !process.env.GIST_TOKEN) return DEFAULT_MEMORY;
   try {
-    await page.goto("https://x.com/home", { waitUntil: "domcontentloaded", timeout: 30000 });
-    await delay(3000);
-    return !page.url().includes("/login") && !page.url().includes("/flow/login");
-  } catch {
-    return false;
-  }
+    const r = await axios.get(`https://api.github.com/gists/${process.env.GIST_ID}`, {
+      headers: { Authorization: `Bearer ${process.env.GIST_TOKEN}` }
+    });
+    const file = r.data.files?.["xoshi_memory.json"];
+    return file ? JSON.parse(file.content) : DEFAULT_MEMORY;
+  } catch { return DEFAULT_MEMORY; }
 }
 
-function parseEngagement(text: string): number {
-  const m = text.match(/([0-9,.]+)\s*([KM])?/i);
-  if (!m) return 0;
-  let n = parseFloat(m[1].replace(/,/g, ""));
-  if ((m[2] || "").toUpperCase() === "K") n *= 1000;
-  if ((m[2] || "").toUpperCase() === "M") n *= 1000000;
-  return Math.round(n);
+async function saveMemory(memory: Memory) {
+  if (!process.env.GIST_ID || !process.env.GIST_TOKEN) return;
+  await axios.patch(`https://api.github.com/gists/${process.env.GIST_ID}`, {
+    files: { "xoshi_memory.json": { content: JSON.stringify(memory, null, 2) } }
+  }, { headers: { Authorization: `Bearer ${process.env.GIST_TOKEN}` } }).catch(() => {});
 }
 
-async function analyze(handle: string, text: string, engagement: number, memory: any) {
-  const r = await axios.post(`${FASTAPI_URL}/api/intelligence/analyze`, {
-    user_handle: handle,
-    text,
-    engagement,
-    context: {
-      previous_interactions: memory.agents?.[handle]?.interactions || 0,
-      agent_type: memory.agents?.[handle]?.author_type || "UNKNOWN"
-    }
-  }, { timeout: 60000 });
-  return r.data;
+function detectLanguage(text: string): string {
+  const t = text.toLowerCase();
+  if (/[а-яё]/.test(t)) return "ru";
+  if (/[\u4e00-\u9fff]/.test(t)) return "zh";
+  if (/[\u3040-\u30ff]/.test(t)) return "ja";
+  if (/[\uac00-\ud7af]/.test(t)) return "ko";
+  if (/\b(el|la|los|las|que|qué|para|como|cómo|una|está|estás|quiero|sobre)\b/.test(t)) return "es";
+  if (/\b(le|les|des|une|avec|pour|comment|quoi|est)\b/.test(t)) return "fr";
+  if (/\b(der|die|das|und|für|wie|was|ist)\b/.test(t)) return "de";
+  if (/\b(o|os|as|para|como|que|uma|sobre|está)\b/.test(t)) return "pt";
+  if (/\b(il|lo|gli|per|come|cosa|una|sulla)\b/.test(t)) return "it";
+  if (/\b(el|la|els|les|per|com|què|una|sobre)\b/.test(t)) return "ca";
+  return "en";
 }
 
-async function replyToTweet(page: Page, tweet: any, reply: string) {
-  await tweet.locator('[data-testid="reply"]').first().click({ timeout: 6000 });
-  await delay(1200);
-
-  const box = page.locator('[data-testid="tweetTextarea_0"], div[role="textbox"]').last();
-  await box.waitFor({ state: "visible", timeout: 7000 });
-  await box.click();
-  await box.pressSequentially(reply.slice(0, 275), { delay: 25 });
-
-  const btn = page.locator('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]').last();
-  await btn.waitFor({ state: "visible", timeout: 7000 });
-  await btn.click({ force: true });
-  await delay(3500);
+async function backend(pathname: string, data: any) {
+  return axios.post(`${FASTAPI_URL}${pathname}`, data, { timeout: 30000 });
 }
 
-
-async function directMentionReply(author: string, text: string, memory: MemoryState): Promise<string> {
-  try {
-    const r = await axios.post(`${FASTAPI_URL}/api/intelligence/mention`, {
-      author,
-      text,
-      handle: XOSHI_HANDLE,
-      previous_interactions: memory.repliedTweets.slice(-20)
-    }, { timeout: 20000 });
-    if (r.data?.reply) return String(r.data.reply).slice(0, 270);
-  } catch {}
-
-  // Safe fallback: never ignore a direct mention if the backend is unavailable.
-  return `@${author} I'm here 👀 What do you want to know about $XOSHI, Stock Tokens, onchain finance or AI agents?`;
+async function loginWithSecrets(context: BrowserContext) {
+  if (!AUTH || !CT0) return;
+  await context.addCookies([
+    { name: "auth_token", value: AUTH, domain: ".x.com", path: "/", httpOnly: true, secure: true, sameSite: "Lax" },
+    { name: "ct0", value: CT0, domain: ".x.com", path: "/", httpOnly: false, secure: true, sameSite: "Lax" }
+  ]);
 }
 
-async function scanMentions(page: Page, memory: any) {
-  await page.goto("https://x.com/notifications/mentions", { waitUntil: "domcontentloaded", timeout: 30000 });
-  await delay(3500);
-
-  const tweets = page.locator('article[data-testid="tweet"]');
-  const count = await tweets.count();
-
-  for (let i = 0; i < Math.min(count, 6); i++) {
-    const tweet = tweets.nth(i);
-    const text = (await tweet.locator('[data-testid="tweetText"]').first().textContent().catch(() => "")) || "";
-    const href = await tweet.locator("time").first().locator("..").getAttribute("href").catch(() => null);
-    const id = href?.match(/status\/(\d+)/)?.[1];
-    const author = ((await tweet.locator('div[dir="ltr"]').filter({ hasText: "@" }).first().textContent().catch(() => "")) || "")
-      .replace("@", "").trim();
-
-    if (!id || !author || !text || author.toLowerCase() === EXCLUDE) continue;
-    if (memory.repliedTweets.includes(id)) continue;
-
-    const result = await analyze(author, text, 0, memory);
-    memory.agents[author] ||= { interactions: 0 };
-    memory.agents[author].author_type = result.author_type;
-    memory.agents[author].interactions++;
-
-    if (["REPLY", "QUESTION"].includes(result.decision) && result.reply) {
-      try {
-        await replyToTweet(page, tweet, result.reply);
-        memory.repliedTweets.push(id);
-        console.log(`Mention replied: @${author}`);
-      } catch (e: any) {
-        console.error("Mention reply failed:", e.message);
-      }
-    } else {
-      memory.repliedTweets.push(id);
-    }
-  }
-}
-
-async function scanRadar(page: Page, memory: any) {
-  const query = SEARCH_QUERIES[Math.floor(Math.random() * SEARCH_QUERIES.length)];
+async function findTweetIds(page: Page, query: string, limit: number) {
   await page.goto(`https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query&f=live`,
     { waitUntil: "domcontentloaded", timeout: 30000 });
-  await delay(4000);
-
-  const tweets = page.locator('article[data-testid="tweet"]');
-  const count = await tweets.count();
-
-  let acted = 0;
-
-  for (let i = 0; i < Math.min(count, 8); i++) {
-    if (acted >= 2) break;
-
-    const tweet = tweets.nth(i);
-    const text = (await tweet.locator('[data-testid="tweetText"]').first().textContent().catch(() => "")) || "";
-    const href = await tweet.locator("time").first().locator("..").getAttribute("href").catch(() => null);
-    const id = href?.match(/status\/(\d+)/)?.[1];
-    const author = ((await tweet.locator('div[dir="ltr"]').filter({ hasText: "@" }).first().textContent().catch(() => "")) || "")
-      .replace("@", "").trim();
-
-    if (!id || !author || !text || author.toLowerCase() === EXCLUDE) continue;
-    if (memory.repliedTweets.includes(id)) continue;
-
-    const result = await analyze(author, text, 0, memory);
-    memory.agents[author] ||= { interactions: 0 };
-    memory.agents[author].author_type = result.author_type;
-
-    if (["REPLY", "QUESTION"].includes(result.decision) && result.reply && Number(result.confidence) >= 0.68) {
-      try {
-        await replyToTweet(page, tweet, result.reply);
-        memory.repliedTweets.push(id);
-        memory.agents[author].interactions++;
-        acted++;
-        console.log(`Radar reply: @${author}`);
-      } catch (e: any) {
-        console.error("Radar reply failed:", e.message);
-      }
-    } else {
-      memory.repliedTweets.push(id);
+  await page.waitForTimeout(2500);
+  return await page.locator('article[data-testid="tweet"]').evaluateAll((articles, lim) => {
+    const out: any[] = [];
+    for (const article of articles.slice(0, lim as number)) {
+      const a = article.querySelector('a[href*="/status/"]') as HTMLAnchorElement | null;
+      const text = (article.textContent || "").trim();
+      if (!a || !text) continue;
+      const m = a.href.match(/status\/(\d+)/);
+      if (m) out.push({ id: m[1], text, href: a.href });
     }
-  }
+    return out;
+  }, limit);
 }
 
-async function postDaily(page: Page, memory: any) {
-  const interval = 12 * 60 * 60 * 1000;
-  const now = Date.now();
-  if (memory.lastDailyPostTime && now - memory.lastDailyPostTime < interval) return;
-
-  const r = await axios.post(`${FASTAPI_URL}/api/reading/daily`, {}, { timeout: 60000 });
-  const text = (r.data?.text || "").slice(0, 280);
-  if (!text) return;
-
-  await page.goto("https://x.com/home", { waitUntil: "domcontentloaded", timeout: 30000 });
-  await delay(2500);
-
-  const compose = page.locator('[data-testid="SideNav_NewTweet_Button"], a[href="/compose/post"]').first();
-  if (await compose.isVisible().catch(() => false)) await compose.click();
-  else await page.keyboard.press("n");
-
-  await delay(1500);
-  const box = page.locator('[data-testid="tweetTextarea_0"], div[role="textbox"]').first();
-  await box.waitFor({ state: "visible", timeout: 8000 });
-  await box.click();
-  await box.pressSequentially(text, { delay: 25 });
-
-  const btn = page.locator('[data-testid="tweetButtonInline"], [data-testid="tweetButton"]').first();
-  await btn.waitFor({ state: "visible", timeout: 8000 });
-  await btn.click({ force: true });
-  await delay(4000);
-
-  memory.lastDailyPostTime = now;
-  memory.postedTexts ||= [];
-  memory.postedTexts.push({ text, time: now });
-  memory.postedTexts = memory.postedTexts.slice(-30);
-  console.log("Xoshi periodic post published.");
+async function replyTo(page: Page, url: string, reply: string) {
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await page.waitForTimeout(1800);
+  const replyButton = page.locator('[data-testid="reply"]').first();
+  if (await replyButton.count()) await replyButton.click();
+  await page.waitForTimeout(800);
+  const box = page.locator('[data-testid="tweetTextarea_0"]').first();
+  if (!await box.count()) return false;
+  await box.fill(reply);
+  const send = page.locator('[data-testid="tweetButton"]').first();
+  if (!await send.count()) return false;
+  await send.click();
+  await page.waitForTimeout(1200);
+  return true;
 }
 
-async function run() {
-  console.log("========== XOSHI XI CYCLE ==========");
-  console.log(new Date().toISOString());
+async function post(page: Page, text: string) {
+  await page.goto("https://x.com/compose/post", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1200);
+  const box = page.locator('[data-testid="tweetTextarea_0"]').first();
+  if (!await box.count()) return false;
+  await box.fill(text.slice(0, 280));
+  const send = page.locator('[data-testid="tweetButton"]').first();
+  if (!await send.count()) return false;
+  await send.click();
+  await page.waitForTimeout(1200);
+  return true;
+}
 
-  if (!(await wakeBackend())) {
-    console.error("Backend unavailable.");
-    return;
-  }
-
-  if (!process.env.TWITTER_AUTH_TOKEN || !process.env.TWITTER_CT0) {
-    console.error("Missing TWITTER_AUTH_TOKEN / TWITTER_CT0.");
-    return;
-  }
+async function main() {
+  if (!FASTAPI_URL) throw new Error("FASTAPI_URL is required");
+  fs.mkdirSync(PROFILE, { recursive: true });
 
   const memory = await loadMemory();
-  memory.repliedTweets ||= [];
-  memory.agents ||= {};
-  memory.trends ||= {};
+  memory.lastRun = new Date().toISOString();
 
-  const context = await createContext();
-  const page = await context.newPage();
+  const context = await chromium.launchPersistentContext(PROFILE, {
+    headless: true,
+    viewport: { width: 1440, height: 900 }
+  });
 
   try {
-    if (!(await loggedIn(page))) {
-      console.error("X login failed. Check auth_token/ct0.");
-      return;
+    await loginWithSecrets(context);
+    const page = await context.newPage();
+    await page.goto("https://x.com/home", { waitUntil: "domcontentloaded", timeout: 30000 });
+
+    // Direct mentions: highest priority.
+    const mentions = await findTweetIds(page, `@${HANDLE}`, 8);
+    for (const tweet of mentions) {
+      if (memory.repliedTweets.includes(tweet.id)) continue;
+      const language = detectLanguage(tweet.text);
+      const analysis = await backend("/api/intelligence/mention", {
+        author: HANDLE,
+        text: tweet.text,
+        detected_language: language
+      }).then(r => r.data).catch(() => null);
+
+      if (analysis?.reply) {
+        const ok = await replyTo(page, tweet.href, analysis.reply);
+        if (ok) memory.repliedTweets.push(tweet.id);
+      }
     }
 
-    await scanMentions(page, memory);
-    await scanRadar(page, memory);
-    await postDaily(page, memory);
+    // Hourly proactive radar.
+    const queries = [
+      "$XOSHI",
+      "\"Stock Tokens\"",
+      "\"tokenized stocks\"",
+      "\"Robinhood Chain\"",
+      "RWA AI agents",
+      "onchain finance AI agents",
+      "crypto AI agents"
+    ];
 
-    // Bound memory growth.
+    let actions = 0;
+    for (const query of queries) {
+      if (actions >= 2) break;
+      const tweets = await findTweetIds(page, query, 5);
+      for (const tweet of tweets) {
+        if (actions >= 2 || memory.repliedTweets.includes(tweet.id)) continue;
+        const language = detectLanguage(tweet.text);
+        const result = await backend("/api/intelligence/analyze", {
+          author: "unknown",
+          text: tweet.text,
+          engagement: {},
+          previous_interactions: memory.repliedTweets.slice(-20),
+          detected_language: language
+        }).then(r => r.data).catch(() => null);
+
+        if (result?.decision === "REPLY" && Number(result.confidence || 0) >= 0.68 && result.reply) {
+          const ok = await replyTo(page, tweet.href, result.reply);
+          if (ok) {
+            memory.repliedTweets.push(tweet.id);
+            actions++;
+          }
+        }
+      }
+    }
+
+    // Daily post: the workflow runs hourly, but posting remains ~12h apart.
+    const last = memory.lastDailyPost ? Date.parse(memory.lastDailyPost) : 0;
+    if (Date.now() - last >= 12 * 60 * 60 * 1000) {
+      const postData = await backend("/api/reading/daily", { language: "en" })
+        .then(r => r.data).catch(() => null);
+      if (postData?.text && await post(page, postData.text)) {
+        memory.lastDailyPost = new Date().toISOString();
+      }
+    }
+
     memory.repliedTweets = memory.repliedTweets.slice(-500);
-    await saveMemoryRemote(memory);
+    await saveMemory(memory);
   } finally {
-    await context.browser()?.close();
+    await context.close();
   }
-
-  console.log("Cycle complete.");
 }
 
-run().catch(e => {
-  console.error("Fatal:", e);
+main().catch(err => {
+  console.error(err);
   process.exit(1);
 });
