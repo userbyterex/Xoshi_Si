@@ -1,12 +1,1 @@
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "esModuleInterop": true,
-    "strict": false,
-    "skipLibCheck": true,
-    "outDir": "dist"
-  },
-  "include": ["*.ts", "scripts/*.ts", "finance/*.ts"]
-}
+{"compilerOptions":{"target":"ES2022","module":"commonjs","moduleResolution":"node","esModuleInterop":true,"strict":true,"skipLibCheck":true},"include":["**/*.ts"]}
