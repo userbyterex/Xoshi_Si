@@ -100,7 +100,7 @@ memory. Xoshi does not execute trades or place orders.
 8. Test by mentioning `@xoshi_Si`.
 
 See:
-- `CLOUD_RUN_SETUP.md`
+- `RENDER_SETUP.md`
 - `X_SETUP.md`
 - `SECRETS.md`
 
