@@ -2,7 +2,8 @@ name: Xoshi XI Cycle
 
 on:
   workflow_dispatch:
-
+  push:
+    branches: [main]
   schedule:
     - cron: "7 * * * *"
 
@@ -10,28 +11,22 @@ jobs:
   xoshi:
     runs-on: ubuntu-latest
     timeout-minutes: 12
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Install dependencies
         working-directory: x-agent
         run: npm install
-
       - name: Install Playwright Chromium
         working-directory: x-agent
         run: npx playwright install --with-deps chromium
-
       - name: TypeScript check
         working-directory: x-agent
         run: npx tsc --noEmit
-
       - name: Backend health check
         env:
           FASTAPI_URL: ${{ secrets.FASTAPI_URL }}
@@ -39,7 +34,6 @@ jobs:
           echo "Checking Xoshi backend..."
           curl -fsS "$FASTAPI_URL/health"
           echo ""
-
       - name: Run Xoshi XI
         working-directory: x-agent
         env:
@@ -51,11 +45,17 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GIST_ID: ${{ secrets.GIST_ID }}
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
-        run: |
-          echo "FASTAPI_URL: ${FASTAPI_URL:+SET}"
-          echo "TWITTER_AUTH_TOKEN: ${TWITTER_AUTH_TOKEN:+SET}"
-          echo "TWITTER_CT0: ${TWITTER_CT0:+SET}"
-          echo "GROQ_API_KEY: ${GROQ_API_KEY:+SET}"
-          echo "GEMINI_API_KEY: ${GEMINI_API_KEY:+SET}"
+        run: npx ts-node run_cycle.ts
 
-          npx ts-node run_cycle.ts
+      - name: Package source ZIP
+        if: always()
+        run: |
+          git archive --format=zip --output=Xoshi-XI-v5.zip HEAD
+          echo "Created Xoshi-XI-v5.zip"
+      - name: Upload source ZIP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xoshi-XI-v5
+          path: Xoshi-XI-v5.zip
+          retention-days: 7
