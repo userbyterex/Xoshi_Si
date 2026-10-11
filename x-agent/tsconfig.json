@@ -4,9 +4,10 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "esModuleInterop": true,
-    "strict": false,
+    "strict": true,
     "skipLibCheck": true,
     "outDir": "dist"
   },
-  "include": ["*.ts"]
+  "include": ["**/*.ts"],
+  "exclude": ["dist", "node_modules"]
 }

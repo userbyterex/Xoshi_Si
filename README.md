@@ -58,3 +58,23 @@ npm run cycle
 ```
 
 For GitHub Actions, use repository secrets instead of a local `.env`.
+
+## Safe simulation
+
+Set `DRY_RUN=true` to execute discovery, reply generation and composer filling
+without publishing to X or writing Gist memory. A manual Actions dispatch
+exposes the same option as the `dry_run` input. Use it after selector changes
+or before enabling a new account session:
+
+```bash
+cd x-agent
+DRY_RUN=true FASTAPI_URL=https://YOUR-SERVICE.onrender.com npm run cycle
+```
+
+The repository also includes deterministic local checks that do not contact X:
+
+```bash
+npm run typecheck
+npm test
+cd ../backend && python -m unittest discover -s tests -p 'test_*.py'
+```
