@@ -96,7 +96,7 @@
 | `npm audit --omit=dev` | **Pasó**: 0 vulnerabilidades conocidas |
 | `npm ci --ignore-scripts` | **Pasó**: instalación reproducible |
 | `git diff --check` | **Pasó** |
-| GitHub Actions `38174548767`, SHA `22a8cd7` | **Pasó** con `dry_run=true`; no publicó ni guardó memoria |
+| [GitHub Actions `38174954768`](https://github.com/userbyterex/Xoshi_Si/actions/runs/38174954768), SHA `c75e68e` | **Pasó** con `dry_run=true`; no publicó ni guardó memoria |
 | Workflow YAML y migración a actions Node 24 | **Pasó**; usa `ubuntu-24.04`, checkout v5, setup-node v6, setup-python v6 y upload-artifact v6 |
 
 ## Límites y siguientes pasos
@@ -109,4 +109,4 @@
 
 ## Compatibilidad de GitHub Actions
 
-La primera ejecución DRY_RUN reveló que las actions v4/v5 del workflow aún declaraban el runtime Node 20 y que `ubuntu-latest` migraría pronto de imagen. Se actualizaron `checkout@v5`, `setup-node@v6`, `setup-python@v6` y `upload-artifact@v6` (sus manifiestos oficiales declaran `node24`) y se fijó `ubuntu-24.04`. Referencias oficiales: [aviso de retiro de Node 20](https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/), [checkout v5 y runner mínimo](https://github.com/actions/checkout/releases/tag/v5.0.0), [manifiestos de checkout](https://raw.githubusercontent.com/actions/checkout/v5/action.yml), [setup-node](https://raw.githubusercontent.com/actions/setup-node/v6/action.yml), [setup-python](https://raw.githubusercontent.com/actions/setup-python/v6/action.yml) y [upload-artifact](https://raw.githubusercontent.com/actions/upload-artifact/v6/action.yml). La ejecución anterior pasó con advertencias; se volverá a ejecutar el workflow con estas versiones antes de cerrar la entrega.
+La primera ejecución DRY_RUN reveló que las actions v4/v5 del workflow aún declaraban el runtime Node 20 y que `ubuntu-latest` migraría pronto de imagen. Se actualizaron `checkout@v5`, `setup-node@v6`, `setup-python@v6` y `upload-artifact@v6` (sus manifiestos oficiales declaran `node24`) y se fijó `ubuntu-24.04`. Referencias oficiales: [aviso de retiro de Node 20](https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/), [checkout v5 y runner mínimo](https://github.com/actions/checkout/releases/tag/v5.0.0), [manifiestos de checkout](https://raw.githubusercontent.com/actions/checkout/v5/action.yml), [setup-node](https://raw.githubusercontent.com/actions/setup-node/v6/action.yml), [setup-python](https://raw.githubusercontent.com/actions/setup-python/v6/action.yml) y [upload-artifact](https://raw.githubusercontent.com/actions/upload-artifact/v6/action.yml). La segunda ejecución DRY_RUN (SHA `c75e68e`) terminó correctamente y sus logs no muestran advertencias Node 20 ni de migración `ubuntu-latest`.
