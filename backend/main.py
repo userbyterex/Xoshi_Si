@@ -74,6 +74,28 @@ def clean(text: str) -> str:
     return text[:280].strip()
 
 
+def usable_model_text(text: str | None) -> str | None:
+    """Reject prompt echoes and malformed provider output before it reaches X."""
+    candidate = clean(text or "")
+    if len(candidate) < 24:
+        return None
+    lowered = candidate.lower()
+    instruction_fragments = (
+        "write one original x post",
+        "reply in ",
+        "do not invent",
+        "no hashtags",
+        "avoid generic marketing",
+        "generic crypto marketing",
+        "no preamble",
+        "unverified user content",
+    )
+    if any(fragment in lowered for fragment in instruction_fragments):
+        print("Provider output rejected: instruction echo.")
+        return None
+    return candidate
+
+
 def detect_reply_language(text: str) -> str:
     """Small deterministic detector for the languages Xoshi explicitly supports."""
     normalized = f" {text.lower()} "
@@ -194,7 +216,10 @@ Do not restate Xoshi's previous point. If the author has already discussed the
 same idea with Xoshi, push the conversation one layer deeper. Pick one angle
 and write a natural X reply. No preamble. No quotation marks.
 """
-    reply = await groq(prompt) or await gemini(prompt) or FALLBACK_REPLIES[language]
+    reply = usable_model_text(await groq(prompt))
+    if not reply:
+        reply = usable_model_text(await gemini(prompt))
+    reply = reply or FALLBACK_REPLIES[language]
     return {"reply": clean(reply)}
 
 
@@ -208,7 +233,9 @@ other current facts. Make one strong thesis and distinguish opinion from fact.
 Use 1-3 sentences. No hashtags unless they add signal. No generic crypto
 marketing language.
 """
-    post = await groq(prompt) or await gemini(prompt)
+    post = usable_model_text(await groq(prompt))
+    if not post:
+        post = usable_model_text(await gemini(prompt))
     if not post:
         post = "The real RWA unlock is not putting old assets onchain. It is turning ownership into a primitive that other financial systems can compose."
     return {"post": clean(post)}

@@ -32,6 +32,12 @@ class BackendTests(unittest.TestCase):
             response = asyncio.run(main.reading_reply(request))
         self.assertEqual(response["reply"], main.FALLBACK_REPLIES["Spanish"])
 
+    def test_instruction_echo_is_rejected(self):
+        request = main.ReplyRequest(tweet="What changes when equities are tokenized?", author="alice")
+        with patch.object(main, "groq", AsyncMock(return_value="No hashtags; avoid generic marketing.")), patch.object(main, "gemini", AsyncMock(return_value=None)):
+            response = asyncio.run(main.reading_reply(request))
+        self.assertEqual(response["reply"], main.FALLBACK_REPLIES["English"])
+
     def test_health_reports_without_secret_values(self):
         response = asyncio.run(main.health())
         self.assertTrue(response["ok"])
