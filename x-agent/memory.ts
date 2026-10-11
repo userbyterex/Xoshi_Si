@@ -32,6 +32,22 @@ const DEFAULT_MEMORY: XoshiMemory = {
   recentPosts: []
 };
 
+export const MAX_DAILY_PROJECT_POSTS = 3;
+export const PROJECT_POST_WINDOW_MS = 24 * 60 * 60 * 1000;
+let persistentMemoryLoaded = false;
+
+export function hasPersistentMemorySnapshot(): boolean {
+  return Boolean(process.env.GIST_ID && process.env.GIST_TOKEN && persistentMemoryLoaded);
+}
+
+export function dailyProjectPostCount(memory: XoshiMemory, nowMs = Date.now()): number {
+  const cutoff = nowMs - PROJECT_POST_WINDOW_MS;
+  return memory.recentPosts.filter(post => {
+    const publishedAt = Date.parse(post.publishedAt);
+    return Number.isFinite(publishedAt) && publishedAt >= cutoff && publishedAt <= nowMs;
+  }).length;
+}
+
 const GIST_FILE = "xoshi_memory.json";
 
 function headers() {
@@ -55,6 +71,7 @@ export function normalizeText(text: string): string {
 }
 
 export async function loadMemory(): Promise<XoshiMemory> {
+  persistentMemoryLoaded = false;
   const id = process.env.GIST_ID;
   const token = process.env.GIST_TOKEN;
   if (!id || !token) {
@@ -67,6 +84,7 @@ export async function loadMemory(): Promise<XoshiMemory> {
       headers: headers(),
       timeout: 15000
     });
+    persistentMemoryLoaded = true;
     const file = response.data?.files?.[GIST_FILE];
     if (!file?.content) return structuredClone(DEFAULT_MEMORY);
     const parsed = JSON.parse(file.content);
@@ -82,6 +100,7 @@ export async function loadMemory(): Promise<XoshiMemory> {
   } catch (error: unknown) {
     const status = axios.isAxiosError(error) ? error.response?.status : undefined;
     console.log(`Gist memory load failed: ${status || "request error"}`);
+    persistentMemoryLoaded = false;
     return structuredClone(DEFAULT_MEMORY);
   }
 }

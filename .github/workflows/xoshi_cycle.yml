@@ -16,6 +16,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: xoshi-xi-cycle
+  cancel-in-progress: false
+
 jobs:
   xoshi:
     runs-on: ubuntu-24.04

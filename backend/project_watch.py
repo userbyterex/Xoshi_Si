@@ -439,6 +439,37 @@ def x_character_count(text: str) -> int:
     return sum(len(part) for part in parts) + 23 * len(urls)
 
 
+def project_hashtags(category: str, chain: str) -> list[str]:
+    """Choose up to three tags only from the source-reported category and chain."""
+    normalized = category.casefold()
+    if "rwa" in normalized or "real world" in normalized:
+        tags = ["#RWA", "#DeFi"]
+    elif "stablecoin" in normalized or "stable coin" in normalized:
+        tags = ["#Stablecoins", "#DeFi"]
+    elif "bridge" in normalized or "cross-chain" in normalized:
+        tags = ["#CrossChain", "#DeFi"]
+    elif "staking" in normalized:
+        tags = ["#Staking", "#DeFi"]
+    elif any(term in normalized for term in ("lending", "dex", "derivative", "yield", "defi")):
+        tags = ["#DeFi", "#Crypto"]
+    else:
+        tags = ["#Crypto"]
+
+    chain_tag = {
+        "Ethereum": "#Ethereum",
+        "Solana": "#Solana",
+        "Base": "#Base",
+        "Arbitrum": "#Arbitrum",
+        "Polygon": "#Polygon",
+        "Optimism": "#Optimism",
+        "Avalanche": "#Avalanche",
+        "BSC": "#BNBChain",
+    }.get(chain)
+    if chain_tag and chain_tag not in tags:
+        tags.append(chain_tag)
+    return tags[:3]
+
+
 def render_project_post(project: VerifiedProject) -> str:
     """Create source-linked copy from only the verified upstream fields."""
     name = sanitize_project_name(project.name)
@@ -450,21 +481,22 @@ def render_project_post(project: VerifiedProject) -> str:
         tvl = f"${tvl_m / 1000:.1f}B"
     else:
         tvl = f"${tvl_m:.0f}M"
+    hashtags = " ".join(project_hashtags(project.category, project.chain))
 
     text = (
-        f"Watchlist, not a buy call: {name} ({project.chain}) — DeFiLlama reports "
+        f"Bullish watchlist (TVL trend only, not a buy call): {name} ({project.chain}) — DeFiLlama reports "
         f"{tvl} TVL, {change:+.1f}% over 7d. Automated token + rug screens returned "
         f"no flagged checks; neither rules out a rug. Sources: "
         f"{project.sources['protocol_metrics']} {project.sources['token_security']} "
-        f"{project.sources['rug_pull_screen']}"
+        f"{project.sources['rug_pull_screen']} {hashtags}"
     )
     if x_character_count(text) > 280:
         # Keep all three evidence URLs; shorten prose rather than dropping sources.
         text = (
-            f"Watchlist, not an endorsement: {name} — TVL {tvl}, {change:+.1f}%/7d "
-            f"(DeFiLlama). Automated screens: no flags reported; not proof against rugs. "
+            f"Bullish TVL-only watchlist (not an endorsement): {name} — {tvl}, {change:+.1f}%/7d. "
+            f"Screens: no flags reported; not proof against rugs. Sources: "
             f"{project.sources['protocol_metrics']} {project.sources['token_security']} "
-            f"{project.sources['rug_pull_screen']}"
+            f"{project.sources['rug_pull_screen']} {hashtags}"
         )
     if x_character_count(text) > 280:
         return ""

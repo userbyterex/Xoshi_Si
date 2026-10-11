@@ -81,8 +81,12 @@ cd ../backend && python -m unittest discover -s tests -p 'test_*.py'
 
 ## Verified crypto project watchlist
 
-Daily project posts are selected from DeFiLlama metrics and must pass provider-
-specific token-security and rug-pull checks (GoPlus for EVM; GoPlus plus RugCheck for Solana). Source links and a non-endorsement
-disclaimer are required by the backend and checked again by Playwright; missing
-or unknown scan data means no post. Automated checks cannot guarantee that a
-project will never rug. See [the full screening and source policy](PROJECT_WATCH_POLICY.md).
+Project posts are selected from DeFiLlama metrics and must pass provider-specific
+token-security and rug-pull checks (GoPlus for EVM; GoPlus plus RugCheck for
+Solana). The agent publishes at most three verified project posts in any rolling
+24-hour window, never repeats a project within seven days, and adds one to three
+category/chain hashtags. Source links and a non-endorsement disclaimer are
+required by the backend and checked again by Playwright; missing or unknown scan
+data or unavailable persistent memory means no post. Automated checks cannot
+guarantee that a project will never rug. See [the full screening and source
+policy](PROJECT_WATCH_POLICY.md).

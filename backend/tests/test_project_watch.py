@@ -137,11 +137,15 @@ class ProjectWatchTests(unittest.TestCase):
         )
         post = watch.render_project_post(project)
         self.assertTrue(post)
-        self.assertIn("not a buy call", post)
-        self.assertIn("neither rules out a rug", post)
+        self.assertIn("Bullish", post)
+        self.assertTrue("not a buy call" in post or "not an endorsement" in post)
+        self.assertTrue("neither rules out a rug" in post or "not proof against rugs" in post)
         self.assertIn(project.sources["protocol_metrics"], post)
         self.assertIn(project.sources["token_security"], post)
         self.assertIn(project.sources["rug_pull_screen"], post)
+        self.assertIn("#DeFi", post)
+        self.assertIn("#Ethereum", post)
+        self.assertTrue("TVL trend only" in post or "TVL-only" in post)
         self.assertLessEqual(watch.x_character_count(post), 280)
 
     def test_solana_post_links_goplus_and_cached_rugcheck_report(self):
@@ -167,6 +171,8 @@ class ProjectWatchTests(unittest.TestCase):
         self.assertIn(project.sources["protocol_metrics"], post)
         self.assertIn(project.sources["token_security"], post)
         self.assertIn(project.sources["rug_pull_screen"], post)
+        self.assertIn("#Solana", post)
+        self.assertLessEqual(len(watch.project_hashtags("Real World Assets", "Solana")), 3)
         self.assertLessEqual(watch.x_character_count(post), 280)
 
     def test_recent_project_is_not_repeated(self):

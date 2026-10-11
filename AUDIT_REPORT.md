@@ -40,7 +40,8 @@
 
 - `DRY_RUN=true` permite navegar, descubrir posts, generar texto y llenar editores sin publicar en X.
 - En simulación no se actualiza Gist ni se marca una respuesta/post como procesado. Por tanto, un dry run no oculta trabajo real futuro.
-- La memoria se elevó a versión 3 y guarda los posts diarios verificados recientes para evitar publicar el mismo texto tras el cooldown.
+- La memoria v3 cuenta los posts en una ventana móvil de 24 horas: máximo tres posts de proyecto. Sin snapshot de Gist correctamente cargado, el autopublicador se abstiene; en DRY_RUN no exige ni modifica memoria.
+- El mismo proyecto/mint se excluye durante siete días. Los posts incluyen hasta tres hashtags derivados solamente de la categoría y cadena reportadas por la fuente.
 - Radar sólo guarda `radarSeen` y la interacción después de una respuesta verificada.
 
 ### Backend FastAPI
@@ -55,13 +56,13 @@
 
 - Se añaden métricas públicas de DeFiLlama y controles explícitos GoPlus para EVM; para Solana se normaliza el prefijo de mint de DeFiLlama y se combinan GoPlus con resumen RugCheck en caché.
 - Se rechazan flags de riesgo, controles administrativos desconocidos, datos incompletos, baja liquidez y concentración de los principales holders por encima del umbral. Una ficha sin todas sus fuentes y disclaimer no llega al editor.
-- Las métricas y textos se generan con plantilla determinista, no con el LLM, para no inventar hechos. Se deduplica contra publicaciones recientes; nunca se afirma que un scan garantice que no habrá rug.
+- Las métricas y textos se generan con plantilla determinista, no con el LLM, para no inventar hechos. Se deduplica contra publicaciones recientes; nunca se afirma que un scan garantice que no habrá rug. La plantilla etiqueta explícitamente que la señal alcista es una tendencia de TVL, no una predicción de precio.
 - El sondeo real de solo lectura encontró 10 candidatas métricas EVM y 2 Solana; ninguna superó todos los controles. FastAPI respondió con `post: ""` y motivo de abstención. No se publicó en X.
 
 ### GitHub Actions y dependencias
 
 - Se añadió `x-agent/package-lock.json`, `npm ci`, caché npm y permisos mínimos `contents: read`.
-- CI ahora ejecuta: typecheck, simulación local Playwright en `DRY_RUN`, tests Python y health check HTTP del backend antes del ciclo.
+- CI ahora ejecuta: typecheck, simulación local Playwright en `DRY_RUN`, tests Python y health check HTTP del backend antes del ciclo; un grupo de concurrencia serializa los ciclos y protege el cupo compartido.
 - El workflow manual recibe `dry_run`; en ejecuciones programadas y push a `main` el valor por defecto es `false`.
 - Las claves Groq/Gemini se retiraron del entorno del job Node, ya que el backend Render es quien las usa; se redujo exposición innecesaria de secretos.
 

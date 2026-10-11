@@ -24,7 +24,7 @@ const server = createServer((request, response) => {
   if (path === "/api/reading/market_cycle") {
     response.end(JSON.stringify({
       post: [
-        "Watchlist, not a buy call: Example (Ethereum). TVL is rising. GoPlus screens: no flags; neither rules out a rug. Sources:",
+        "Bullish watchlist (TVL trend only, not a buy call): Example (Ethereum). TVL is rising. Automated screens: no flags; neither rules out a rug. Sources: #DeFi #Ethereum",
         "https://defillama.com/protocol/example",
         `https://api.gopluslabs.io/api/v1/token_security/1?contract_addresses=0x${"a".repeat(40)}`,
         `https://api.gopluslabs.io/api/v1/rugpull_detecting/1?contract_addresses=0x${"a".repeat(40)}`

@@ -3,7 +3,10 @@ import axios from "axios";
 import {
   authorContext,
   alreadyProcessed,
+  dailyProjectPostCount,
+  hasPersistentMemorySnapshot,
   loadMemory,
+  MAX_DAILY_PROJECT_POSTS,
   markDailyPost,
   markProcessed,
   markRadarSeen,
@@ -256,7 +259,8 @@ export function hasVerifiedProjectSources(post: string): boolean {
   const hasRugScan = hasEvmRugScan || hasSolanaRugScan;
   const hasNonEndorsement = /not (?:a buy call|an endorsement)/i.test(post);
   const hasRiskLimit = /(?:neither rules out a rug|not proof against rugs)/i.test(post);
-  return hasDefiLlama && hasTokenScan && hasRugScan && hasNonEndorsement && hasRiskLimit;
+  const hashtagCount = (post.match(/(?:^|\s)#[A-Za-z][A-Za-z0-9_]*/g) || []).length;
+  return hasDefiLlama && hasTokenScan && hasRugScan && hasNonEndorsement && hasRiskLimit && hashtagCount >= 1 && hashtagCount <= 3;
 }
 
 async function tweetCardLocator(page: Page): Promise<Locator> {
@@ -479,9 +483,13 @@ async function openComposer(page: Page): Promise<Locator | null> {
 }
 
 async function postDaily(page: Page, memory: XoshiMemory): Promise<PublishResult> {
-  const last = memory.lastDailyPost ? Date.parse(memory.lastDailyPost) : 0;
-  if (Date.now() - last < 20 * 60 * 60 * 1000) {
-    console.log("Daily post cooldown active.");
+  const recentPostCount = dailyProjectPostCount(memory);
+  if (recentPostCount >= MAX_DAILY_PROJECT_POSTS) {
+    console.log(`Project post cap active: ${recentPostCount}/${MAX_DAILY_PROJECT_POSTS} in the rolling 24-hour window.`);
+    return "failed";
+  }
+  if (!DRY_RUN && !hasPersistentMemorySnapshot()) {
+    console.log("Project post skipped: persistent Gist memory is required for daily limits and deduplication.");
     return "failed";
   }
 
