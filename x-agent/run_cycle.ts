@@ -198,13 +198,19 @@ async function generateReply(tweetText: string, author: string, previous: unknow
   }
 }
 
-async function generateMarketPost(): Promise<string> {
+async function generateMarketPost(memory: XoshiMemory): Promise<string> {
   if (!FASTAPI_URL) return "";
   try {
     const response = await withLimitedRetry("Market post generation", () =>
-      axios.post(`${FASTAPI_URL}/api/reading/market_cycle`, {}, { timeout: 30000 })
+      axios.post(
+        `${FASTAPI_URL}/api/reading/market_cycle`,
+        { recent_posts: memory.recentPosts.slice(-100) },
+        { timeout: 45000 }
+      )
     );
-    return String(response.data?.post || "").trim();
+    const post = String(response.data?.post || "").trim();
+    if (!post && response.data?.reason) console.log(`Project watch skipped: ${response.data.reason}`);
+    return post;
   } catch (error) {
     console.log(`Market post generation skipped (${errorSummary(error)}).`);
     return "";
@@ -238,6 +244,19 @@ export function extractStatusFromHref(href: string | null): StatusLink | null {
 
 export function buildSearchUrl(query: string): string {
   return xUrl(`/search?q=${encodeURIComponent(query)}&src=typed_query&f=live`);
+}
+
+export function hasVerifiedProjectSources(post: string): boolean {
+  const hasDefiLlama = /https:\/\/defillama\.com\/protocol\/[a-z0-9-]+(?:\s|$)/i.test(post);
+  const hasEvmTokenScan = /https:\/\/api\.gopluslabs\.io\/api\/v1\/token_security\/\d+\?contract_addresses=0x[a-f0-9]{40}(?:\s|$)/i.test(post);
+  const hasSolanaTokenScan = /https:\/\/api\.gopluslabs\.io\/api\/v1\/solana\/token_security\?contract_addresses=[1-9A-HJ-NP-Za-km-z]{32,44}(?:\s|$)/i.test(post);
+  const hasTokenScan = hasEvmTokenScan || hasSolanaTokenScan;
+  const hasEvmRugScan = /https:\/\/api\.gopluslabs\.io\/api\/v1\/rugpull_detecting\/\d+\?contract_addresses=0x[a-f0-9]{40}(?:\s|$)/i.test(post);
+  const hasSolanaRugScan = /https:\/\/api\.rugcheck\.xyz\/v1\/tokens\/[1-9A-HJ-NP-Za-km-z]{32,44}\/report\/summary\?cacheOnly=true(?:\s|$)/i.test(post);
+  const hasRugScan = hasEvmRugScan || hasSolanaRugScan;
+  const hasNonEndorsement = /not (?:a buy call|an endorsement)/i.test(post);
+  const hasRiskLimit = /(?:neither rules out a rug|not proof against rugs)/i.test(post);
+  return hasDefiLlama && hasTokenScan && hasRugScan && hasNonEndorsement && hasRiskLimit;
 }
 
 async function tweetCardLocator(page: Page): Promise<Locator> {
@@ -466,8 +485,12 @@ async function postDaily(page: Page, memory: XoshiMemory): Promise<PublishResult
     return "failed";
   }
 
-  const post = await generateMarketPost();
+  const post = await generateMarketPost(memory);
   if (!post) return "failed";
+  if (!hasVerifiedProjectSources(post)) {
+    console.log("Project post rejected: verified metrics/risk sources or risk disclaimer missing.");
+    return "failed";
+  }
   if (postTextAlreadyPublished(memory, post)) {
     console.log("Skip repeated daily post text.");
     return "failed";

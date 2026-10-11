@@ -38,6 +38,12 @@ class BackendTests(unittest.TestCase):
             response = asyncio.run(main.reading_reply(request))
         self.assertEqual(response["reply"], main.FALLBACK_REPLIES["English"])
 
+    def test_market_cycle_abstains_when_no_project_passes_checks(self):
+        with patch.object(main, "discover_verified_projects", AsyncMock(return_value=[])):
+            response = asyncio.run(main.market_cycle(main.MarketRequest()))
+        self.assertEqual(response["post"], "")
+        self.assertIn("skipped publishing", response["reason"])
+
     def test_health_reports_without_secret_values(self):
         response = asyncio.run(main.health())
         self.assertTrue(response["ok"])

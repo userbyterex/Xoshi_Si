@@ -22,7 +22,14 @@ const server = createServer((request, response) => {
     return;
   }
   if (path === "/api/reading/market_cycle") {
-    response.end(JSON.stringify({ post: "Programmable ownership changes the settlement surface." }));
+    response.end(JSON.stringify({
+      post: [
+        "Watchlist, not a buy call: Example (Ethereum). TVL is rising. GoPlus screens: no flags; neither rules out a rug. Sources:",
+        "https://defillama.com/protocol/example",
+        `https://api.gopluslabs.io/api/v1/token_security/1?contract_addresses=0x${"a".repeat(40)}`,
+        `https://api.gopluslabs.io/api/v1/rugpull_detecting/1?contract_addresses=0x${"a".repeat(40)}`
+      ].join(" ")
+    }));
     return;
   }
 

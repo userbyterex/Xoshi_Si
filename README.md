@@ -78,3 +78,11 @@ npm run typecheck
 npm test
 cd ../backend && python -m unittest discover -s tests -p 'test_*.py'
 ```
+
+## Verified crypto project watchlist
+
+Daily project posts are selected from DeFiLlama metrics and must pass provider-
+specific token-security and rug-pull checks (GoPlus for EVM; GoPlus plus RugCheck for Solana). Source links and a non-endorsement
+disclaimer are required by the backend and checked again by Playwright; missing
+or unknown scan data means no post. Automated checks cannot guarantee that a
+project will never rug. See [the full screening and source policy](PROJECT_WATCH_POLICY.md).

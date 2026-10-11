@@ -5,7 +5,9 @@ from typing import Any, Callable
 
 import httpx
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from project_watch import discover_verified_projects, render_project_post
 
 app = FastAPI(title="Xoshi XI Backend", version="4.1.0")
 
@@ -65,7 +67,7 @@ class ReplyRequest(BaseModel):
 
 
 class MarketRequest(BaseModel):
-    context: str = ""
+    recent_posts: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def clean(text: str) -> str:
@@ -225,17 +227,14 @@ and write a natural X reply. No preamble. No quotation marks.
 
 @app.post("/api/reading/market_cycle")
 async def market_cycle(req: MarketRequest) -> dict[str, str]:
-    prompt = """
-Write one original X post in English for Xoshi XI about the intersection of
-tokenized equities, RWAs, DeFi, AI agents, Robinhood Chain, $XOSHI and onchain
-markets. Do not invent current prices, contracts, news, partnerships, or any
-other current facts. Make one strong thesis and distinguish opinion from fact.
-Use 1-3 sentences. No hashtags unless they add signal. No generic crypto
-marketing language.
-"""
-    post = usable_model_text(await groq(prompt))
+    projects = await discover_verified_projects(req.recent_posts)
+    if not projects:
+        return {
+            "post": "",
+            "reason": "No project passed current source, token-security, and rug-screen checks; skipped publishing.",
+        }
+    project = projects[0]
+    post = render_project_post(project)
     if not post:
-        post = usable_model_text(await gemini(prompt))
-    if not post:
-        post = "The real RWA unlock is not putting old assets onchain. It is turning ownership into a primitive that other financial systems can compose."
-    return {"post": clean(post)}
+        return {"post": "", "reason": "Verified sources did not fit X's character limit; skipped publishing."}
+    return {"post": post, "project": project.name, "verified_at": project.verified_at}
