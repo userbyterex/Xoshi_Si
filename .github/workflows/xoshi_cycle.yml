@@ -2,38 +2,65 @@ name: Xoshi XI Cycle
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Simulate the cycle without publishing or persisting memory"
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main]
   schedule:
     - cron: "7 * * * *"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: xoshi-xi-cycle
+  cancel-in-progress: false
+
 jobs:
   xoshi:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
-      - name: Install dependencies
+          cache: npm
+          cache-dependency-path: x-agent/package-lock.json
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install agent dependencies
         working-directory: x-agent
-        run: npm install
+        run: npm ci
       - name: Install Playwright Chromium
         working-directory: x-agent
         run: npx playwright install --with-deps chromium
       - name: TypeScript check
         working-directory: x-agent
         run: npx tsc --noEmit
+      - name: Playwright dry-run simulation
+        working-directory: x-agent
+        run: npm test
+      - name: Python backend tests
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+          python -m unittest discover -s backend/tests -p 'test_*.py'
       - name: Backend health check
         env:
           FASTAPI_URL: ${{ secrets.FASTAPI_URL }}
         run: |
           echo "Checking Xoshi backend..."
-          curl -fsS "$FASTAPI_URL/health"
-          echo ""
+          response="$(curl --fail --silent --show-error --retry 2 --retry-all-errors --max-time 15 "$FASTAPI_URL/health")"
+          node -e 'const health = JSON.parse(process.argv[1]); if (!health.ok) process.exit(1); console.log("Backend health OK.");' "$response"
       - name: Run Xoshi XI
         working-directory: x-agent
         env:
@@ -41,12 +68,10 @@ jobs:
           TWITTER_AUTH_TOKEN: ${{ secrets.TWITTER_AUTH_TOKEN }}
           TWITTER_CT0: ${{ secrets.TWITTER_CT0 }}
           XOSHI_HANDLE: xoshi_Si
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GIST_ID: ${{ secrets.GIST_ID }}
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: npx ts-node run_cycle.ts
-
       - name: Package source ZIP
         if: always()
         run: |
@@ -54,7 +79,7 @@ jobs:
           echo "Created Xoshi-XI-v5.zip"
       - name: Upload source ZIP
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Xoshi-XI-v5
           path: Xoshi-XI-v5.zip
